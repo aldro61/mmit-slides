@@ -203,6 +203,8 @@ TSWLatexianTemp*
 # WinEdt
 *.bak
 *.sav
+*~
+auto
 
 # Texpad
 .texpadtmp
@@ -218,3 +220,6 @@ TSWLatexianTemp*
 
 # expex forward references with \gathertags
 *-tags.tex
+
+__MACOSX
+.DS_Store

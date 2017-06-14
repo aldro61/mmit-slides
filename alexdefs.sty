@@ -1,0 +1,73 @@
+% this is my first package
+% 
+% (c) Alexandre Drouin
+%
+%% This program can be redistributed and/or modified under the terms
+%% of the LaTeX Project Public License Distributed from CTAN archives
+%% in directory macros/latex/base/lppl.txt.
+% 
+\NeedsTeXFormat{LaTeX2e}[1994/06/01]
+\ProvidesPackage{alexdefs}
+  [2017/03/24 v0.01 LaTeX package for my own purpose]
+
+\RequirePackage{amsfonts,
+                amsthm,
+                amsmath,
+                amssymb, 
+                color}
+
+% Symbol definitions
+% -------------------
+\DeclareMathOperator*{\Esp}{\mathbf{E}}
+\newcommand{\argminpretty}[1]{\underset{#1}{\mathrm{argmin}}~}
+\newcommand{\eqdef}{\overset{{\rm \mbox{\tiny def}}}{=}}
+\newcommand{\la}{\ensuremath{\leftarrow}}
+\newcommand{\ra}{\ensuremath{\rightarrow}}
+
+\newcommand{\bools}{\ensuremath{\mathbb{B}}}
+\newcommand{\reals}{\ensuremath{\mathbb{R}}}
+
+\newcommand{\Acal}{\ensuremath{\mathcal{A}}}
+\newcommand{\Bcal}{\ensuremath{\mathcal{B}}}
+\newcommand{\Ccal}{\ensuremath{\mathcal{C}}}
+\newcommand{\Fbullet}{\ensuremath{F^\bullet}}
+\newcommand{\Fstar}{\ensuremath{F^\star}}
+\newcommand{\Hcal}{\ensuremath{\mathcal{H}}}
+\newcommand{\Ical}{\ensuremath{\mathcal{I}}}
+\newcommand{\Kcal}{\ensuremath{\mathcal{K}}}
+\newcommand{\Mu}{\ensuremath{M}}
+\newcommand{\Ncal}{\ensuremath{\mathcal{N}}}
+\newcommand{\Pcal}{\ensuremath{\mathcal{P}}}
+\newcommand{\phib}{\ensuremath{{\pmb \phi}}}
+\newcommand{\Rcal}{\ensuremath{\mathcal{R}}}
+\newcommand{\Scal}{\ensuremath{\mathcal{S}}}
+\newcommand{\Tcal}{\ensuremath{\mathcal{T}}}
+\newcommand{\Vcal}{\ensuremath{\mathcal{V}}}
+\newcommand{\xb}{\ensuremath{\mathbf{x}}}
+\newcommand{\yb}{\ensuremath{\mathbf{y}}}
+\newcommand{\Xcal}{\ensuremath{\mathcal{X}}}
+\newcommand{\Ycal}{\ensuremath{\mathcal{Y}}}
+\newcommand{\Zcal}{\ensuremath{\mathcal{Z}}}
+% -------------------
+
+% Decision trees
+\newcommand{\nodes}[1]{\ensuremath{\hat{#1}}}
+\newcommand{\leaves}[1]{\ensuremath{\widetilde{#1}}}
+
+% Commands to help with revision
+% -------------------------------
+\newcommand{\red}{\textcolor{red}}
+\newcommand{\blue}{\textcolor{blue}}
+\newcommand{\green}{\textcolor{green}}
+
+
+\makeatletter
+\newcommand{\oset}[3][0ex]{%
+  \mathrel{\mathop{#3}\limits^{
+    \vbox to#1{\kern-2\ex@
+    \hbox{$\scriptstyle#2$}\vss}}}}
+\makeatother
+
+\endinput
+%%
+%% End of file `alexdefs.sty'.

@@ -1,0 +1,517 @@
+\documentclass{beamer}
+
+\mode<presentation>
+ {
+ \usetheme{Boadilla}
+ \usecolortheme{beaver}
+ }
+
+\usepackage{default}
+
+% Packages pour écrire en français
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+
+% Algorithms
+\usepackage[vlined,ruled]{algorithm2e}
+
+% For figures
+\usepackage{graphicx}
+
+% Math packages
+\usepackage{amsmath}
+
+% Control font size
+\usepackage{anyfontsize}
+
+% Create appendix slides without numbering them
+\usepackage{appendixnumberbeamer}
+
+% To have a border around images 
+%\usepackage[export]{adjustbox} 
+
+%\usepackage{media9}
+
+\resetcounteronoverlays{algocf}
+
+\usepackage{alexdefs}
+
+% Get bold numbers in tables without increasing the font size
+%\newcommand{\bestrisk}[1]{{\normalsize\fontseries{b}\selectfont #1}}
+\newcommand{\bestrisk}[1]{{\red{\textbf{\footnotesize\selectfont#1}}}}
+\newcommand{\sparsest}[1]{{\blue{\textbf{\footnotesize\selectfont#1}}}}
+
+% Hide columns in table (set type to H)
+\usepackage{array}
+\newcolumntype{H}{>{\setbox0=\hbox\bgroup}c<{\egroup}@{}}
+
+\setbeamertemplate{section page}
+{
+    \begin{centering}
+    \begin{beamercolorbox}[sep=12pt,center]{part title}
+    \usebeamerfont{section title}\insertsection\par
+    \end{beamercolorbox}
+    \end{centering}
+}
+\setbeamercovered{transparent}
+
+\definecolor{green}{rgb}{0.07, 0.53, 0.03}
+
+% MMIT symbol definitions
+\newcommand{\ylower}[1]{\ensuremath{\underline{y_{#1}}}}
+\newcommand{\yupper}[1]{\ensuremath{\overline{y_{#1}}}}
+\DeclareMathOperator*{\minimize}{minimize}
+
+\begin{document}
+
+\title[MMIT]{Maximum Margin Interval Trees}
+\author[Drouin et al.]{Alexandre Drouin{\tiny $^1$}, Toby Dylan Hocking{\tiny $^2$}, Fran\c{c}ois Laviolette{\tiny $^1$}}
+\institute[U. Laval \& U. McGill]{{\tiny $^1$}Department of Computer Science and Software Engineering, Universit\'e Laval\\ 
+											{\tiny $^2$}McGill University and Génome Québec Innovation Centre, McGill University}
+\date[June 6, 2017]{\vskip 3mm \small McGill University\\Montreal, Canada\\June 6, 2017}
+
+% Parameters
+\AtBeginSection{\frame{\sectionpage}}
+
+\begin{frame}
+\titlepage
+\begin{center}
+\vspace{3mm}
+\begin{columns}
+\begin{column}{0.2\textwidth}
+\vspace{1mm}
+\includegraphics[width=\textwidth,height=1cm]{graal.pdf}
+\end{column}
+\begin{column}{0.2\textwidth}
+\vspace{-3mm}
+\includegraphics[width=\textwidth,height=2.5cm]{crdmul_fr.pdf}
+%\vspace*{3mm}
+%\includegraphics[width=0.8\textwidth,height=1.5cm]{crdmul_en.pdf}
+\end{column}
+\begin{column}{0.2\textwidth}
+\hspace{-2mm}
+\includegraphics[width=\textwidth,height=1cm]{ul.pdf}
+\end{column}
+\begin{column}{0.3\textwidth}
+	\hspace{-2mm}
+	\includegraphics[width=\textwidth,height=0.8cm]{mcgill_logo.pdf}
+\end{column}
+\end{columns}
+\end{center}
+\end{frame}
+
+\begin{frame}{Outline}
+\tableofcontents
+\end{frame}
+
+\section{Introduction}
+
+\begin{frame}{Supervised genomic data analysis}
+  Learning sparse penalties for change-point detection using
+  max-margin interval regression. Rigaill et al, ICML2013.
+  \begin{itemize}
+  \item We have lots of genomic data to analyze.
+  \item We can label a subset of samples in a few genomic regions
+    (positive=changepoint, negative=no change).
+  \item We don't have enough time to label all samples and genomic regions.
+  \item Optimal changepoint detection algorithms are good at
+    automatically finding changepoints, as long as the penalty (number
+    of changepoints) is chosen appropriately.
+  \item Idea: learn a penalty function that minimizes the number of
+    incorrectly predicted labels.
+  \item Interval regression problem results because several penalty
+    values yield the same number of changepoints.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Interval regression for DNA copy number analysis}
+  \includegraphics[height=0.8\textheight]{DNA-copy-number-analysis}
+
+  \url{http://bl.ocks.org/tdhock/raw/10f27e4ace80bffa10a0/}
+\end{frame}
+
+\begin{frame}{Interval regression for ChIP-seq peak detection}
+  \includegraphics[width=\textwidth]{ChIP-seq-peak-detection}
+
+  \small
+  \url{http://bl.ocks.org/tdhock/raw/9311ca39d643d127e04a088814c81ee1/}
+\end{frame}
+
+\begin{frame}{A supervised learning problem}
+	\begin{block}{Data set}
+		\begin{equation*}
+		\Scal \eqdef \{(\xb_1, \yb_1), (\xb_2, \yb_2), ..., (\xb_n, \yb_n))\} \sim D^n
+		\end{equation*}
+		$\xb \in \reals^p$ is a vector of \red{features}\\[2mm]
+		$\yb_i \eqdef \left[ \, \ylower{i}, \yupper{i} \, \right]$, with $\ylower{i}, \yupper{i} \in \overline\reals$ and $\ylower{i} < \yupper{i}$, is an \red{interval}\\[2mm]
+		$D$ is a \red{unknown} data generating distribution
+	\end{block}
+	\pause
+	\vspace{2mm}
+	\begin{block}{Censored data}
+		\begin{itemize}
+			\item<+-> Right censored: $\yb = [\ylower{i}, +\infty)$ \vspace{2mm}
+			\item<+-> Left censored: $\yb = (-\infty, \yupper{i}]$ \vspace{2mm}
+			\item<+-> Interval censored: $\yb = [\ylower{i}, \yupper{i}]$
+		\end{itemize}
+	\end{block}
+\end{frame}
+
+\begin{frame}{Measuring error with respect to an interval}
+	\begin{block}{How do we measure the error?}
+		Let $\mu \in \reals$ be the value predicted by some model. The error w.r.t. the interval $[\ylower{}, \yupper{}]$ is:	
+		\vspace{-2mm}
+		\begin{center}
+			\includegraphics[scale=0.8]{figures/objective/interval_loss.pdf}
+		\end{center}
+	\end{block}
+	\pause
+	\begin{block}{Hinge loss}
+		\begin{enumerate}
+			\item<+-> Let $\ell: \reals \rightarrow \reals$ be any convex increasing function
+			\item<+-> Let $[x]_+$, be the positive part function i.e. $[x]_+ \not = 0 \Leftrightarrow x > 0$
+			\item<+-> The \emph{hinge loss} associated with $\ell$ is $\phi_\ell(x) = \ell([x]_+)$
+		\end{enumerate}
+	\end{block}
+\end{frame}
+
+\begin{frame}{Objective}
+	Our goal is to find a function $f:\mathbb R^p\rightarrow\mathbb R$ that minimizes the expected error for any example drawn from $D$:
+	$$
+	\minimize_{f} \underset{(\xb_i, \yb_i) \sim D}{\mathbf{E}} \phi_\ell(\ylower{i} - f(\xb_i)) + \phi_\ell(f(\xb_i) - \yupper{i}),
+	$$
+	\vspace{6mm}
+	\begin{center}
+		\includegraphics[scale=0.8]{figures/objective/interval_loss_fx.pdf}
+	\end{center}
+\end{frame}
+
+
+\section{Maximum Margin Interval Trees}
+
+
+\begin{frame}{Maximum Margin Interval Trees}
+	\begin{itemize}
+		\item<+-> We seek a regression tree $T: \reals^p \rightarrow \reals$ that minimizes:
+		\begin{equation*}
+		C(T) \eqdef \sum_{(\xb_i, \yb_i) \in S} \left[ \phi_\ell \left( - T(\xb_i) + \ylower{i} + \epsilon \right) + \phi_\ell \left(T(\xb_i) - \yupper{i} + \epsilon \right) \right]
+		\end{equation*}\\[-2mm]
+		where $\epsilon$ is a \red{margin hyperparameter} used for \red{regularization}.
+		\vspace{5mm}
+		\item<+-> We consider the cases $\ell(x) = x$ and $\ell(x) = x^2$.
+	\end{itemize}
+	\begin{center}
+		\includegraphics[scale=1.1]{figures/regression_tree/regression_tree.pdf}
+	\end{center}
+\end{frame}
+
+\begin{frame}{The leaves of a MMIT}
+	\begin{itemize}
+		\item<+-> Let $\leaves{T}$ be the set of all leaves in a tree $T$
+		\vspace{4mm}
+		\item<+-> A leaf $\tau \in \leaves{T}$ is associated with a \red{set of examples} $S_\tau \subseteq S$ t.q.
+			\begin{itemize}
+				\item $S = \bigcup_{\tau \in \leaves{T}} S_\tau$
+				\vspace{2mm}
+				\item $S_\tau \cap S_{\tau'} \not= \emptyset \Leftrightarrow \tau = \tau'$
+			\end{itemize}
+		\vspace{4mm}
+		\item<+-> Each leaf \red{predicts a constant value} for all the examples in $S_\tau$
+		\vspace{4mm}
+		\item<+-> The contribution of a leaf $\tau$ to the total cost of the tree, given that it predicts $\mu \in \reals$, is given by
+		\begin{equation*}
+		C_\tau(\mu) \eqdef \sum_{(\xb_i, \yb_i) \in S_\tau} \left[ \phi_\ell( - \mu + \ylower{i} + \epsilon) + \phi_\ell( \mu - \yupper{i} + \epsilon) \right]
+		\end{equation*}
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{The tree is built by recursive partitioning}
+	\begin{itemize}
+		\item Let $\tau_0 \in \leaves{T}$ be any leaf:
+		\begin{center}
+			\includegraphics[scale=1.2]{figures/leaf_split/root_leaf.pdf}
+		\end{center}
+		
+		\vspace{6mm}
+		
+		\item We replace $\tau_0$ by two new leaves $\tau_1$ et $\tau_2$ according to a boolean-valued rule $r: \reals^p \rightarrow \{\text{True}, \text{False}\}$:
+		\begin{center}
+			\includegraphics[scale=1.2]{figures/leaf_split/split_rule.pdf}
+		\end{center}
+		
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Partitioning a leaf}
+	\begin{center}
+		\resizebox{\textwidth}{!}{\input{figures/paper/figure.leaf.split.pgf}}
+	\end{center}
+	\pause
+	\begin{equation*}\label{eq:cost_left}
+	\overset{\longleftarrow}{C_{\tau_0}}(\mu_1 \,|\, j, \delta) \ \eqdef \sum_{(\xb_i, \yb_i) \in S_{\tau_0}\,:\,\red{x_{ij} \leq \delta}} \left[ \phi_\ell(-\mu_1 + \ylower{i} + \epsilon) + \phi_\ell(\mu_1 - \yupper{i} + \epsilon) \right]
+	\end{equation*}
+	\pause
+	\begin{equation*}\label{eq:cost_right}
+	\overset{\longrightarrow}{C_{\tau_0}}(\mu_2 \,|\, j, \delta) \ \eqdef \sum_{(\xb_i, \yb_i) \in S_{\tau_0}\,:\,\red{x_{ij} > \delta}} \left[ \phi_\ell(-\mu_2 + \ylower{i} + \epsilon) + \phi_\ell(\mu_2 - \yupper{i} + \epsilon) \right]
+	\end{equation*}
+\end{frame}
+
+\begin{frame}{Partitioning results in two convex sub-problems}
+	We find the \red{rule} to use and the \red{predicted values} for each leaf by solving the following optimization problem:
+	\begin{equation*}
+	\displaystyle\min_{j, \delta, \mu_1, \mu_2} \left[ \overset{\longleftarrow}{C_\tau}(\mu_1 \,|\, j, \delta) + \overset{\longrightarrow}{C_\tau}(\mu_2 \,|\, j, \delta) \right]
+	\end{equation*}
+	\vspace*{5mm}
+	
+	\pause
+	For a given rule ($x_{i\red{j}} \leq \red{\delta}$), this corresponds to solving two \red{convex optimization} problems:
+	\begin{equation*}
+	\min_{j,\delta} \left[ \min_{\mu_1} \overset{\longleftarrow}{C_\tau}(\mu_1 \,|\, j, \delta) +
+	\min_{\mu_2} \overset{\longrightarrow}{C_\tau}(\mu_2 \,|\, j, \delta) \right]
+	\end{equation*}
+\end{frame}
+
+\begin{frame}{Search space for $\delta$}
+	\begin{itemize}
+		\item Given a feature $j$, we seek the best threshold $\delta \in \reals$ for a rule of the form $x_{ij} \leq \delta$
+		\vspace{4mm}
+		\item There is an \red{infinite} number of possible values
+		\vspace{4mm}
+		\item We must only consider $\delta \in \{ x_{1j}, \dots, x_{nj} \}$, since all other thresholds \red{do not change} the configuration of \red{the leaves}.
+	\end{itemize}
+	
+	\vspace{3mm}
+	\begin{center}
+		\includegraphics[scale=0.5]{figures/equivalent_thresholds.pdf}
+	\end{center}
+\end{frame}
+
+\begin{frame}{A dynamic programming solution}
+%	\begin{block}{Observation}
+%	$\overset{\longleftarrow}{C_\tau}(\mu_1 \,|\, j, \delta)$ et $\overset{\longrightarrow}{C_\tau}(\mu_2 \,|\, j, \delta)$ calculent la somme d'un \red{ensemble de \emph{hinge loss}} de type:
+%	\begin{itemize}
+%		\item $\mu \mapsto \phi_\ell(-\mu + \ylower{i} + \epsilon)$ and $\mu \mapsto \phi_\ell(\mu - \yupper{i} + \epsilon)$
+%	\end{itemize}
+%	\end{block}
+	\vspace{-3mm}
+
+	\begin{equation*}
+	\overset{\longleftarrow}{C_{\tau}}(\mu_1 \,|\, j, \delta) \ \eqdef \sum_{(\xb_i, \yb_i) \in S_{\tau}\,:\,x_{ij} \leq \delta} \phi_\ell(-\mu_1 + \ylower{i} + \epsilon) + \phi_\ell(\mu_1 - \yupper{i} + \epsilon) 
+	\end{equation*}
+	
+	\begin{block}{Observation}
+          Let $i_1,\dots,i_n$ be a permutation of $1,\dots,n$ such
+          that $x_{i_1,\, j} \leq \cdots \leq x_{i_n,\, j}$ (sorted
+          according to feature $j$).
+\begin{eqnarray*}
+  \overset{\longleftarrow}{C_{\tau}}(\mu_1 \,|\, j, \red{x_{i_n,\, j}}) \ & \eqdef & \sum_{(\xb_i, \yb_i) \in S_{\tau}\,:\,x_{ij} \,\leq\, x_{i_n,\, j}} \phi_\ell(-\mu_1 + \ylower{i} + \epsilon) + \phi_\ell(\mu_1 - \yupper{i} + \epsilon) \\
+		&=& \overset{\longleftarrow}{C_{\tau}}(\mu_1 \,|\, j, \red{x_{i_{n-1},\, j}}) +  \phi_\ell(-\mu_1 + \ylower{n} + \epsilon) + \phi_\ell(\mu_1 - \yupper{n} + \epsilon)
+		\end{eqnarray*}
+	\end{block}
+	
+%	\pause
+%	\vspace{3mm}
+%	\begin{itemize}
+%		\item<+-> Supposons qu'il existe un algorithme $\Omega$:
+%			\begin{itemize}
+%				\item \textbf{Entrée:} un \red{ensemble} quelconque de tels \red{\emph{hinge loss}} définis sur $\mu$
+%				\vspace{1mm}
+%				\item \textbf{Tâche:} calcule la somme de tous les hinge loss
+%				\vspace{1mm}
+%				\item \textbf{Sortie:} la valeur d'un minimum global et la valeur de $\mu$ correspondante
+%			\end{itemize}
+%		
+%		\vspace{3mm}
+%		\item<+-> Nous montrerons que nous pouvons utiliser un tel $\Omega$ pour résoudre le problème d'optimisation précédent de façon efficace
+%	\end{itemize}
+\end{frame}
+
+%\begin{frame}{Vers une solution par programmation dynamique}
+%	\begin{itemize}
+%		\item<+-> Pour chaque valeur de seuil $\delta_{j,k}$, nous définissons $\Phi_{j,k}$, \red{l'ensemble des \emph{hinge loss}} de type $\mu \mapsto \phi_\ell(-\mu + \ylower{i} + \epsilon)$ et $\mu \mapsto \phi_\ell(\mu - \yupper{i} + \epsilon)$ pour les $(\xb_i, \yb_i) \in S_\tau$ tels que \red{$x_{ij} = \delta_{j,k}$}.
+%		\vspace{3mm}
+%		
+%		\item<+-> Puisque $\delta_{j,i} < \delta_{j,i+1}$, nous avons:
+%			\begin{equation*}
+%			\min_\mu \overset{\longleftarrow}{C_{\tau}}(\mu \,|\, j, \delta_{j,k}) \,=\, \Omega(\Phi_{j,1} \cup \dots \cup \Phi_{j,k})
+%			\end{equation*}
+%			\begin{equation*}
+%			\min_\mu \overset{\longrightarrow}{C_\tau}(\mu \,|\, j, \delta_{j,k}) \,=\, \Omega(\Phi_{j,k+1} \cup \dots \cup \Phi_{j,n_j})
+%			\end{equation*}	
+%		
+%		\item<+->  De plus, nous pouvons obtenir $\overset{\longleftarrow}{C_\tau}(\mu \,|\, j, \delta_{j,k})$ à partir de $\overset{\longleftarrow}{C_\tau}(\mu \,|\, j, \delta_{j,k-1})$ en ajoutant les \emph{hinge loss} dans $\Phi_{j,k}$.
+%		\vspace{3mm}
+%		
+%		\item<+-> De façon similaire, nous pouvons obtenir $\overset{\longrightarrow}{C_\tau}(\mu \,|\, j, \delta_{j,k})$ à partir de $\overset{\longrightarrow}{C_\tau}(\mu \,|\, j, \delta_{j,k-1})$ en enlevant les \emph{hinge loss} dans $\Phi_{j,k}$.
+%	\end{itemize}
+%\end{frame}
+%
+%\begin{frame}{Utilisation de l'algorithme $\Omega$}
+%	Le coût associé à chacune des $n_j$ valeurs de seuil est donnée par:
+%	\vspace{4mm}
+%	\begin{equation*}\label{eq:dynprog}
+%	\begin{array}{cccc}
+%	\onslide<1>{\delta_{j,1}:} & \onslide<1,2>{\Omega(\Phi_{j,1})} & \onslide<1>{+} & \onslide<1,3->{\Omega(\Phi_{j,2} \cup \dots \cup \Phi_{j,n_j})} \\
+%	\onslide<1>{\vdots} & \onslide<1-2>{\vdots} & & \onslide<1,3->{\vdots}\\
+%	\onslide<1>{\delta_{j,i} :} & \onslide<1,2>{\Omega(\Phi_{j,1} \cup \dots \cup \Phi_{j,i})} & \onslide<1>{+} & \onslide<1,3->{\Omega(\Phi_{j,i+1} \cup \dots \cup \Phi_{j,n_j})} \\
+%	\onslide<1>{\vdots} & \onslide<1,2>{\vdots} & & \onslide<1,3->{\vdots}\\
+%	\onslide<1>{\delta_{j,n_j - 1} :} & \onslide<1-2>{\Omega(\Phi_{j,1} \cup \dots \cup \Phi_{j,n_j - 1})} & \onslide<1>{+} & \onslide<1,3->{\Omega(\Phi_{j,n_j})}
+%	\end{array}
+%	\end{equation*}
+%	
+%	\begin{center}
+%		\only<1>{\vspace{0.6cm}Si $\Omega$ est un programme dynamique, nous pouvons calculer\\chaque solution efficacement}
+%		\only<2>{\vspace{1cm}De \red{haut en bas} pour la \red{première colonne}}
+%		\only<3>{\vspace{1cm}De \red{bas en haut} pour la \red{deuxième colonne}}
+%	\end{center}
+%\end{frame}
+
+\begin{frame}{Minimizing a sum of hinge losses by dynamic programming}
+	\only<1>{
+		Both $\overset{\longleftarrow}{C_{\tau}}(\mu_1 \,|\, j, \delta_i)$ and $\overset{\longrightarrow}{C_{\tau}}(\mu_1 \,|\, j, \delta_i)$ are sums of \emph{hinge losses} of the following form (suppose $\ell(x) = x$): \vspace{4mm}
+		\begin{itemize}
+			\item Lower interval limit: $\mu \mapsto \phi_\ell(-\mu + \ylower{i} + \epsilon)$:
+			\vspace{5mm}
+			\begin{center}
+				\includegraphics[scale=0.55]{figures/solver/lower_hinge.pdf}
+			\end{center}
+			\vspace{4mm}
+			\item Upper interval limit: $\mu \mapsto \phi_\ell(\mu - \yupper{i} + \epsilon)$:
+			\vspace{5mm}
+			\begin{center}
+				\includegraphics[scale=0.55]{figures/solver/upper_hinge.pdf}
+			\end{center}
+		\end{itemize}
+	}
+	\only<2>{\begin{center}
+			\includegraphics[scale=0.35]{figures/solver/sum_of_hinges.pdf}\\[3mm]
+			A sum of \emph{hinge losses} is a \red{convex function} that is\\ \red{piecewise} linear (or quadratic)
+		\end{center}
+	}
+	\only<3>{\begin{center}
+			\includegraphics[scale=0.35]{figures/solver/sum_of_hinges_with_pointer.pdf}\\[3mm]
+		     We maintain a \red{pointer} on the first changepoint that is\\ located to the \red{right of all global minima}
+		\end{center}
+	}
+	\only<4>{\begin{center}
+			\includegraphics[scale=0.5]{figures/solver/pointer_needs_to_move.pdf}\\[3mm]
+			The \emph{hinge losses} are added one by one.\\ Sometimes, the \red{pointer} must be \red{moved}.
+		\end{center}
+	}
+\end{frame}
+
+\begin{frame}{Moving the pointer}
+  \includegraphics[width=\textwidth]{figure-algorithm-steps}
+
+  \begin{itemize}
+  \item Compute cost function pieces exactly in terms of coefficients.
+  \item All the $c_{t,i}$ functions are not computed, that would be
+    $O(n^2)$.
+  \item Instead we compute just the minimum $m_t,M_t$ and
+    the pointer $j_t,J_t$.
+  \item Also need to store breakpoints $b_{t,i}$ and difference
+    functions $f_{t,i}(\mu)=c_{t,i}(\mu)-c_{t,i-1}(\mu)$, C++STL map
+    container, $O(\log n)$ insertion.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Time complexity of the dynamic programming algorithm}
+	\begin{itemize}
+		\item<+-> Suppose that we have $n$ \emph{hinge losses} \vspace{5mm}
+		\item<+-> We add the \emph{hinge losses} to the sum one by one  ($n$ times) \vspace{5mm}
+		\item<+-> The insertion of a new loss takes time $O(\max(\log n, k))$ where $k$ is the number of required pointer movements. \vspace{5mm}
+		\item<+-> Case $\ell(x) = x$: we have shown that $k \in \{0, 1\}$, so $O(n \log n)$ \vspace{5mm}
+		\item<+-> Case $\ell(x) = x^2$: we do not have a guarantee (empirical demonstration)
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Learning a tree by minimizing over all features}
+Overall time complexity per split $O(p n \log n)$
+
+For example $p=4$ features in the figure below.
+
+\includegraphics[width=\textwidth]{screenshot-search-over-features}
+
+\small
+\url{http://bl.ocks.org/tdhock/raw/105352ef496c22a80aea7c326b64c0a3/}
+
+\end{frame}
+
+
+\section{Results}
+
+
+\begin{frame}{Empirical evaluation of time complexity}
+	\begin{center}
+		\begin{columns}
+			\begin{column}{0.5\textwidth}
+				\hspace*{3mm}
+				\includegraphics[height=1.6in]{figures/paper/figure-moves.pdf}
+			\end{column}
+			\begin{column}{0.5\textwidth}
+				\hspace*{3mm}
+				\includegraphics[height=1.6in]{figures/paper/figure-simulated-seconds.pdf}
+			\end{column}
+		\end{columns}
+	\vspace{5mm}
+	On average, we observed running times proportional to\\ \red{$n \log n$} for the \red{linear} and \red{quadratic} cases
+	\end{center}
+\end{frame}
+
+\begin{frame}{MMIT can model non-linear functions}
+	\begin{center}
+		\resizebox{\textwidth}{!}{\input{figures/paper/figure.simulated.functions.pgf}}\\[5mm]
+	MMIT can model non-linear functions, whereas the linear models of\\Rigaill et al. (2013) cannot.
+	\end{center}
+\end{frame}
+
+\begin{frame}{Empirical evaluation of prediction accuracy}
+	We compared our algorithm to the following methods: \vspace{2mm}
+	\begin{itemize}
+		\item<+-> \textbf{Constant:} uses the training set to find the constant function that traverses the most intervals \vspace{2mm}
+		\item<+-> \textbf{Interval-CART:} a regression tree (Breiman et al., 1984) where each example $(\xb_i, \yb_i) \in S$ has been replaced by two regular regression examples: $(\xb_i, \ylower{i} + \epsilon)$ and $(\xb_i, \yupper{i} - \epsilon)$.
+		\vspace{2mm}
+		\item<+-> \textbf{L1-Linear:} margin-based linear interval regression (Hocking et al., 2013)
+		\vspace{2mm}
+		\item<+-> \textbf{TransfoTree:} a decision tree algorithm for censored data that is not margin-based (Hothorn et Zeileis, 2017)
+	\end{itemize}
+\end{frame}
+
+\begin{frame}{Empirical evaluation of prediction accuracy}
+	Results for $5$ validation sets for each data set:
+	\vspace{-3mm}
+	\begin{center}
+		\hspace*{-8.7mm}
+		\includegraphics[width=1.1\textwidth]{figures/paper/figure-evaluate-predictions-folds.pdf}
+	\end{center}
+	
+	\vspace{4mm}
+	Metric used for comparison:
+	\vspace{-2mm}
+	\begin{equation*}
+	\text{MSE}(h, S) = \frac{1}{n} \sum_{i=1}^n \left( [h(\xb_i) - \ylower{i}] I[h(\xb_i) < \ylower{i}] + [h(\xb_i) - \yupper{i}] I[h(\xb_i) > \yupper{i}] \right)^2
+	\end{equation*}
+\end{frame}
+
+\section{Conclusion}
+
+\begin{frame}{Conclusion}
+	\begin{itemize}
+		\item<+-> We proposed a new decision tree algorithm for the interval regression setting
+		\vspace{3mm}
+		\item<+-> We showed that such trees could be trained by solving a small number of convex optimization problems
+		\vspace{3mm}
+		\item<+-> We proposed an efficient dynamic programming algorithm for this task
+		\vspace{3mm}
+		\item<+-> Our algorithm compares favorably to the state of the art
+	\end{itemize}
+\end{frame}
+
+\begin{frame}[noframenumbering]
+	\begin{center}
+		{\huge Thank you!}\\[20mm]
+		{\huge Questions?}
+	\end{center}
+\end{frame}
+
+\end{document}

@@ -1,0 +1,17 @@
+\documentclass[tikz,border=5]{standalone}
+\usetikzlibrary{graphs,graphdrawing,arrows.meta,shapes.misc}
+\usegdlibrary{trees}
+
+\tikzset
+{
+	treenode/.style = {rounded rectangle, draw=black, align=center, minimum size=0.7cm},
+	leaf/.style = {rounded rectangle, draw=black, align=center, minimum width=1cm, fill=red, text=white}
+}
+
+\begin{document}	
+\begin{tikzpicture}[>=Stealth]
+\graph[binary tree layout]{
+  1 [treenode,as=$x_{ij} \leq \delta$] -> {4 [leaf,as=$\tau_1$], 5 [leaf, as=$\tau_2$]}
+};
+\end{tikzpicture}
+\end{document}
